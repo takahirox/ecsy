@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title></title>
+    <meta name="description" content="">
+      <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+        <style>
+          body {
+            margin: 0px;
+            background-color: #000000;
+            overflow: hidden;
+            color: #fff;
+          }
+      </style>
+    <script src="https://raw.githack.com/kripken/ammo.js/master/builds/ammo.js"></script>
+    <script src="https://raw.githack.com/mrdoob/three.js/r104/build/three.js"></script>
+    <script src="https://raw.githack.com/mrdoob/three.js/r104/examples/js/vr/WebVR.js"></script>
+
+  </head>
+  <body>
+  </body>
+  <script type="module">
+    import {World} from '../../../build/ecsy.module.js';
+    import {Box, Sphere, RigidBody} from '../components.mjs';
+    import {PhysicsSystem} from '../systems.mjs';
+
+Ammo().then(_ => {
+    const world = new World();
+    window.world = world; // for debug
+
+    world
+      .registerSystem(PhysicsSystem);
+
+    world
+      .registerComponent(Box)
+      .registerComponent(Sphere)
+      .registerComponent(RigidBody);
+
+    const objectNum = 200;
+
+    const scene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.001, 500);
+    camera.position.y = 20;
+    camera.position.z = 100;
+    camera.lookAt(new THREE.Vector3(0, 0, 0));
+
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setClearColor(0xffffff);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.vr.enabled = true;
+    document.body.appendChild(renderer.domElement);
+
+    renderer.setAnimationLoop(animate);
+
+    document.body.appendChild(WEBVR.createButton(renderer));
+
+    window.addEventListener('resize', onWindowResize, false);
+    window.addEventListener('keypress', onKeyPress, false);
+
+    const clock = new THREE.Clock();
+
+    init();
+
+    function init() {
+      const light = new THREE.DirectionalLight(0xffffff);
+      light.position.set(1.0, 1.0, 1.0);
+      scene.add(light);
+
+      scene.add(createGround());
+
+      const boxes = createBoxes();
+      for(let i = 0, il = boxes.length; i < il; i++) {
+        scene.add(boxes[i]);
+      }
+    }
+
+    function createGround() {
+      const geometry = new THREE.BoxBufferGeometry(500.0, 1.0, 500.0);
+      const material = new THREE.MeshStandardMaterial({metalness: 0.0, color: 0xffffff});
+      const ground = new THREE.Mesh(geometry, material);
+
+      ground.position.y = - 15.0;
+
+      const entity = world.createEntity();
+      entity
+        .addComponent(Box, {
+          width: geometry.parameters.width / 2,
+          height: geometry.parameters.height / 2,
+          depth: geometry.parameters.depth / 2
+        })
+        .addComponent(RigidBody, {
+          object: ground,
+          weight: 0.0,
+          restitution: 1.0,
+          friction: 1.0,
+          linearDamping: 0.0,
+          angularDamping: 0.0
+        });
+
+      return ground;
+    }
+
+    function createSphere() {
+      const geometry = new THREE.SphereBufferGeometry(4.0);
+      const material = new THREE.MeshStandardMaterial({color: 0xffffff});
+      const sphere = new THREE.Mesh(geometry, material);
+
+      sphere.position.copy(camera.position);
+
+      const power = 100;
+      const direction = camera.getWorldDirection(new THREE.Vector3());
+      direction.x *= power;
+      direction.y *= power;
+      direction.z *= power;
+
+      const entity = world.createEntity();
+      entity
+        .addComponent(Sphere, {
+            radius: geometry.parameters.radius
+        })
+        .addComponent(RigidBody, {
+          object: sphere,
+          weight: 10.0,
+          restitution: 0.5,
+          friction: 0.5,
+          linearDamping: 0.0,
+          angularDamping: 0.0,
+          linearVelocity: {x: direction.x, y: direction.y, z: direction.z}
+        });
+
+      return sphere;
+    }
+
+    function createBoxes() {
+      const geometry = new THREE.BoxBufferGeometry(4.0, 4.0, 4.0);
+      const material = new THREE.MeshStandardMaterial();
+
+      const boxes = [];
+
+      for(let i = 0; i < objectNum; i++) {
+        boxes[i] = createBox(geometry, material);
+      }
+
+      return boxes;
+    }
+
+    function createBox(geometry, material) {
+      const box = new THREE.Mesh(geometry, material);
+
+      box.position.x = (Math.random() - 0.5) * 10.0;
+      box.position.y = (Math.random() - 0.5) * 10.0 + 30.0;
+      box.position.z = (Math.random() - 0.5) * 10.0 - 50.0;
+
+      const entity = world.createEntity();
+      entity
+        .addComponent(Box, {
+          width: geometry.parameters.width / 2.0,
+          height: geometry.parameters.height / 2.0,
+          depth: geometry.parameters.depth / 2.0
+        })
+        .addComponent(RigidBody, {
+          object: box,
+          weight: 1.0,
+          restitution: 0.5,
+          friction: 0.5,
+          linearDamping: 0.0,
+          angularDamping: 0.0
+        });
+
+      return box;
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function onKeyPress(event) {
+      // @TODO: replace with VR controller trigger
+      if(event.keyCode !== 32) return; // 32 is space key
+      scene.add(createSphere());
+    }
+
+    function animate() {
+      world.execute(clock.getDelta(), clock.elapsedTime);
+      render();
+    }
+
+    function render() {
+      renderer.render(scene, camera);
+    }
+});
+  </script>
+</html>
